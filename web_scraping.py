@@ -2,6 +2,9 @@ import json
 import requests
 import re
 import pymongo
+import datetime
+import pandas as pd
+from openpyxl.workbook import Workbook
 
 
 class Scraper(object):
@@ -22,18 +25,24 @@ class Scraper(object):
     '''
     Due a limitation on the backend you can not request more que 1000 articles. 
     '''
-    def scrape(self, tag):
-        articles = self.scrape_articles(tag, maxArticlesPerRequest=1000)
 
-        #self.record_data_on_mongoDB(articles)
-        self.export_data_to_csv(articles)
+    def scrape(self, tag):
+        articles = self.denormalize_data(self.scrape_articles(tag, maxArticlesPerRequest=1000))
+
+        # self.record_data_on_mongoDB(articles)
+        self.export_data_to_csv(articles, tag)
 
         print("Finished!")
 
+    def export_data_to_csv(self, articles, tag):
+        df = pd.DataFrame(articles)
+        filename = "{0}_{1}.xlsx".format(
+            datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S"),
+            tag
+        )
+        print("Writting "+filename)
+        df.to_excel(filename, sheet_name=tag)
 
-    def export_data_to_csv(self, articles):
-        for article in articles:
-            print(article)
 
     def record_data_on_mongoDB(self, articles):
         mycol = self.connect_to_mongoDB()
@@ -48,6 +57,23 @@ class Scraper(object):
         mydb = myclient["devto"]
         mycol = mydb["articles"]
         return mycol
+
+    def denormalize_data(self, articles):
+        for i in range(0, len(articles)):
+            article = articles[i]
+            tags = sorted(article['tag_list'])
+            newfields_dict = {"tag{0}".format(i): tags[i] for i in range(0, len(tags))}
+
+            published_at_int = article['published_at_int']
+            readable_published_at = datetime.datetime.fromtimestamp(
+                published_at_int).strftime("%Y/%m/%d %H:%M:%S")
+            newfields_dict['readable_published_at'] = readable_published_at
+
+            dicts_merged = {**newfields_dict, **article}
+            articles[i] = dicts_merged
+           
+        return articles
+
 
     def scrape_articles(self, tag, maxArticlesPerRequest=1, page=0):
         articles = []

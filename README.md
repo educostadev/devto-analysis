@@ -22,10 +22,9 @@
 ## Runing the python script
 
 - The script is using **Python 3.7**
-- You need the modules _requests, pymongo_. To install these python modules run:
+- You will need to install the modules _requests, pymongo_, _panda_, _openpyxl_, . Ex.
 ```
 python -m pip install requests
-python -m pip install pymongo
 ```
 - Run the script
 ```
