@@ -4,7 +4,24 @@ import re
 import pymongo
 import datetime
 import pandas as pd
+import sys
 from openpyxl.workbook import Workbook
+
+
+class MondoDB(object):
+    def record_data_on_mongoDB(self, articles):
+        mycol = self.connect_to_mongoDB()
+        print("Recording on database...")
+        for article in articles:
+            x = mycol.insert_one(article)
+            print(x.insert_one)
+
+    def connect_to_mongoDB(self):
+        myclient = pymongo.MongoClient(
+            "mongodb://mongoadmin:mongopwd@localhost:27017/admin")
+        mydb = myclient["devto"]
+        mycol = mydb["articles"]
+        return mycol
 
 
 class Scraper(object):
@@ -22,64 +39,56 @@ class Scraper(object):
             'Referer': 'https://dev.to/'
         }
 
-    '''
-    Due a limitation on the backend you can not request more que 1000 articles. 
-    '''
+    # Due a limitation on the backend you can not request more que 1000 articles.
+    def scrape(self, tag, articlesVisited={}, tagsVisited=[]):
+        if (tag not in tagsVisited):
+            articles = self.get_articles(tag, maxArticlesPerRequest=1000)
+            tagsVisited.append(tag)
+            for article in articles:
+                if article['id'] not in articlesVisited:
+                    articlesVisited[article['id']] = article
+                    for tag in article['tag_list']:
+                        self.scrape(tag, articlesVisited, tagsVisited)
+                        # print(article['id'])
 
-    def scrape(self, tag):
-        articles = self.denormalize_data(self.scrape_articles(tag, maxArticlesPerRequest=1000))
-
-        # self.record_data_on_mongoDB(articles)
-        self.export_data_to_csv(articles, tag)
-
-        print("Finished!")
-
-    def export_data_to_csv(self, articles, tag):
+    def export_to_csv(self, articles, prefix):
         df = pd.DataFrame(articles)
         filename = "{0}_{1}.xlsx".format(
             datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S"),
-            tag
+            prefix
         )
         print("Writting "+filename)
-        df.to_excel(filename, sheet_name=tag)
+        df.to_excel(filename, sheet_name=prefix)
 
+    def get_articles(self, tag, maxArticlesPerRequest=1, page=0):
+        articles = []
+        try:
+            main_request_json = self.do_request(
+                maxArticlesPerRequest, page, tag)
+            articles.extend(main_request_json['hits'])
+            # Remove articles with not enough data
+            for article in list(articles):
+                if self.isInValid(article):
+                    articles.remove(article)
+            print("{0};{1}".format(len(articles), tag))
+            return self.enrich_data(articles)
+        except:
+            print("Error")
+        return articles
 
-    def record_data_on_mongoDB(self, articles):
-        mycol = self.connect_to_mongoDB()
-        print("Recording on database...")
-        for article in articles:
-            x = mycol.insert_one(article)
-            print(x.insert_one)
+    def isInValid(self, article):
+        return 'published_at_int' not in article or 'id' not in article
 
-    def connect_to_mongoDB(self):
-        myclient = pymongo.MongoClient(
-            "mongodb://mongoadmin:mongopwd@localhost:27017/admin")
-        mydb = myclient["devto"]
-        mycol = mydb["articles"]
-        return mycol
-
-    def denormalize_data(self, articles):
+    def enrich_data(self, articles):
         for i in range(0, len(articles)):
             article = articles[i]
-            tags = sorted(article['tag_list'])
-            newfields_dict = {"tag{0}".format(i): tags[i] for i in range(0, len(tags))}
-
+            newfields_dict = {}
             published_at_int = article['published_at_int']
             readable_published_at = datetime.datetime.fromtimestamp(
                 published_at_int).strftime("%Y/%m/%d %H:%M:%S")
             newfields_dict['readable_published_at'] = readable_published_at
-
             dicts_merged = {**newfields_dict, **article}
             articles[i] = dicts_merged
-           
-        return articles
-
-
-    def scrape_articles(self, tag, maxArticlesPerRequest=1, page=0):
-        articles = []
-        main_request_json = self.do_request(maxArticlesPerRequest, page, tag)
-        articles.extend(main_request_json['hits'])
-        print("{0} articles read".format(len(articles)))
         return articles
 
     def do_request(self, maxArticlesPerRequest, page, tag):
@@ -90,13 +99,34 @@ class Scraper(object):
             data=json.dumps(self.payload),
             headers=self.header
         )
-
         main_request_json = json.loads(request.content)
         return main_request_json
 
+    def create_tags_per_article(self, articlesVisited={}, tagsVisited=[]):
+        tagsPerArticle = {}
+        for tag in tagsVisited:
+            tagsPerArticle[tag] = []
+        for article in list(articlesVisited.values()):
+            for tag in article['tag_list']:
+                if tag in tagsPerArticle:
+                    tagsPerArticle[tag].append(article['id'])
+            for tag in list(tagsPerArticle.keys()):
+                if (tag not in article['tag_list']):
+                    tagsPerArticle[tag].append(0)
+        return tagsPerArticle
+
 
 if __name__ == '__main__':
+    sys.setrecursionlimit(50000)
     scraper = Scraper()
-    tag = 'java'
-    print("Reading articler from tag "+tag)
-    scraper.scrape(tag)
+    tag = 'Java'
+    articlesVisited = {}
+    tagsVisited = []
+    scraper.scrape(tag, articlesVisited, tagsVisited)
+    tagsPerArticle = scraper.create_tags_per_article(
+        articlesVisited, tagsVisited)
+    scraper.export_to_csv(list(articlesVisited.values()), "dataset")
+    scraper.export_to_csv(tagsPerArticle, "tags")
+    print("{0} articles read for tags {1}".format(
+        len(articlesVisited), tagsVisited))
+    print("Finished!")
