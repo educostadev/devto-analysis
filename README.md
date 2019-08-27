@@ -15,25 +15,36 @@
 
 - Open the python script
 - Paste the _'Request URL'_ into the _'self.url'_ entry
-- Go to the file end and change the _'tag'_ variable with the TAG you want to grab data. 
-- Output: CSV files ar generated on method _'self.export_data_to_csv'_
-- Optional: To record data on Mongo DB uncomment the line _'self.record_data_on_mongoDB(articles)'_ and configure the mongoDB connection
+- Go to the file end and change the _'tag'_ variable with the TAG you want to start read data. You provide just one tag and all the others will be read from the articles.
+- Output: CSV file is generated in the method _'self.export_data_to_csv'_
+- Optional: To record data on Mongo DB use the _MondoDB class_ and configure the mongoDB connection
 
 ## Runing the python script
 
 - The script is using **Python 3.7**
+- The logic use recursion to get all TAGs chained. 
+- Due the recursion the the stack deph was increased
 - You will need to install the modules _requests, pymongo_, _panda_, _openpyxl_, . Ex.
 ```
 python -m pip install requests
 ```
-- Run the script
+- Warning: It took ~40min doing data requests with full CPU usage and memory consumption of 12GB. 13k tags and 52k articles read.
+- Run the script. 
 ```
-python -u web_scraping.py
+python -u web_scraping.py > tagsVisited.csv
 ```
 
-# Data Json
+# Output
 
-The published_at_int field has a numeric value that represent a date time. To convert this number to a formatted date the dev.to website use a [timeAgo funcion](https://github.com/thepracticaldev/dev.to/pull/1981/files#diff-ae46909d1fad54dcf15fe8b6d54921ea) 
+- In the end the program will create a spreadsheet file. Ex. 2019_08_26_15_27_27_dataset.xlsx
+
+  ![screenshot_spreadsheet](screenshot_spreadsheet.jpg)
+- Whether you redirect the stdout output to a file like _tagsVisited.csv_ it will have the tag name and the quantity of articles read. 
+
+
+# JSON Format
+
+- The _published_at_int_ field has a numeric value that represent a date time. To convert this number to a formatted date the dev.to website use a [timeAgo funcion](https://github.com/thepracticaldev/dev.to/pull/1981/files#diff-ae46909d1fad54dcf15fe8b6d54921ea) 
 
 The response is a json in the following format.
 ```json
@@ -109,5 +120,6 @@ Dev.to use Angolia as backend and Angolia has a [pagination limitation](https://
   "params": "query=*&hitsPerPage=100&page=10&attributesToHighlight=%5B%5D&tagFilters=%5B%22java%22%5D&restrictIndices=searchables_production%2CTag_production%2Cordered_articles_production%2CClassifiedListing_production%2Cordered_articles_by_published_at_production%2Cordered_articles_by_positive_reactions_count_production%2Cordered_comments_production"
 }
 ```
+
 
 

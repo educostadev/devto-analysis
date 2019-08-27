@@ -49,7 +49,6 @@ class Scraper(object):
                     articlesVisited[article['id']] = article
                     for tag in article['tag_list']:
                         self.scrape(tag, articlesVisited, tagsVisited)
-                        # print(article['id'])
 
     def export_to_csv(self, articles, prefix):
         df = pd.DataFrame(articles)
@@ -102,31 +101,15 @@ class Scraper(object):
         main_request_json = json.loads(request.content)
         return main_request_json
 
-    def create_tags_per_article(self, articlesVisited={}, tagsVisited=[]):
-        tagsPerArticle = {}
-        for tag in tagsVisited:
-            tagsPerArticle[tag] = []
-        for article in list(articlesVisited.values()):
-            for tag in article['tag_list']:
-                if tag in tagsPerArticle:
-                    tagsPerArticle[tag].append(article['id'])
-            for tag in list(tagsPerArticle.keys()):
-                if (tag not in article['tag_list']):
-                    tagsPerArticle[tag].append(0)
-        return tagsPerArticle
-
 
 if __name__ == '__main__':
-    sys.setrecursionlimit(50000)
+    sys.setrecursionlimit(50000)  # increase recursion depth
     scraper = Scraper()
     tag = 'Java'
     articlesVisited = {}
     tagsVisited = []
     scraper.scrape(tag, articlesVisited, tagsVisited)
-    tagsPerArticle = scraper.create_tags_per_article(
-        articlesVisited, tagsVisited)
     scraper.export_to_csv(list(articlesVisited.values()), "dataset")
-    scraper.export_to_csv(tagsPerArticle, "tags")
     print("{0} articles read for tags {1}".format(
         len(articlesVisited), tagsVisited))
     print("Finished!")
